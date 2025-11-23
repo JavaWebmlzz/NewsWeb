@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新闻首页 - 您的新闻网站</title>
+
+
+    <meta name="news-category" content="general">
+
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        /* 首页特有样式：文章卡片布局 */
+        .article-card {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 20px;
+        }
+        .card-image img {
+            width: 150px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .card-content { flex-grow: 1; }
+        .card-content h4 { margin-top: 0; font-size: 1.2em; }
+        .card-meta { font-size: 0.85em; color: #888; }
+        .section-title {
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <h1>M L 📰 新闻早知道 📰 Z Z</h1>
+    <nav>
+        <a href="index.html" style="font-weight: bold;">首页</a>
+        <a href="politics.html">政治</a>
+        <a href="finance.html">财经</a>
+        <a href="tech.html">科技</a>
+        <a href="sports.html">体育</a>
+        <a href="entertainment.html">娱乐</a>
+    </nav>
+</header>
+
+<div class="main-container">
+
+    <main class="article-content" style="flex: 3; padding: 25px;">
+        <div id="ad-slot-homepage-top" class="ad-slot top-banner" data-ad-size="728x90">
+            [广告位 A：首页顶部通栏 (728x90)]
+        </div>
+
+        <h3 class="section-title">今日头条</h3>
+        <div class="article-card">
+            <div class="card-image"><img src="img/placeholder-top-story.png" alt="头条图"></div>
+            <div class="card-content">
+                <h4><a href="politics.html">国际贸易谈判取得历史性突破，全球市场信心大振</a></h4>
+                <p class="card-meta"><span class="category-tag" style="background-color: #dc3545;">政治</span> | 2小时前</p>
+                <p>各国代表团经过三天激烈磋商，终于就 xxx 达成了协议...</p>
+            </div>
+        </div>
+
+        <h3 class="section-title">科技新闻</h3>
+        <div class="article-card">
+            <div class="card-image"><img src="img/placeholder-tech-story.png" alt="科技图"></div>
+            <div class="card-content">
+                <h4><a href="tech.html">革命性的新芯片问世：AI 算力大提升</a></h4>
+                <p class="card-meta"><span class="category-tag">科技</span> | 1天前</p>
+                <p>XXX 公司宣布推出其代号为“Aether”的全新 AI 专用芯片...</p>
+            </div>
+        </div>
+
+        <div id="ad-slot-homepage-middle" class="ad-slot top-banner" data-ad-size="728x90">
+            [广告位 B：首页中插通栏 (728x90)]
+        </div>
+
+        <h3 class="section-title">财经聚焦</h3>
+        <div class="article-card">
+            <div class="card-image"><img src="img/placeholder-finance-story.png" alt="财经图"></div>
+            <div class="card-content">
+                <h4><a href="finance.html">央行宣布降息，对房贷和股市有何影响？</a></h4>
+                <p class="card-meta"><span class="category-tag" style="background-color: #28a745;">财经</span> | 4小时前</p>
+                <p>此次降息幅度超出市场预期，短期内将刺激消费和投资...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <aside class="sidebar">
+        <div class="category-nav">
+            <h3>热门新闻</h3>
+            <ul>
+                <li><a href="#">年度最佳电影回顾</a></li>
+                <li><a href="#">周末天气预报</a></li>
+            </ul>
+        </div>
+
+        <div id="ad-slot-sidebar-general" class="ad-slot skyscraper-ad" data-ad-size="300x600">
+            [广告位 C：侧边栏通用摩天大楼 (300x600)]
+        </div>
+
+    </aside>
+
+</div>
+
+<script>
+    // 任务二的广告 API 嵌入脚本将放在此处
+</script>
+</body>
+</html>
