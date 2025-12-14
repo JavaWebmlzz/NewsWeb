@@ -1,7 +1,6 @@
-package Dao.impl;
+package Dao;
 
 
-import Dao.NewsDAO;
 import Model.News;
 import Util.DBUtil;
 
