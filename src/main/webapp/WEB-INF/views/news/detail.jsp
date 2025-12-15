@@ -67,8 +67,10 @@
             <div class="card mb-4">
                 <div class="card-header">广告位</div>
                 <div class="card-body">
-                    <div class="ad-placeholder">
-                        <span class="text-muted">此处展示广告</span>
+                    <div id="ad-container" class="ad-placeholder">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">正在加载...</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -91,6 +93,39 @@
         <span class="text-muted">© 2023 JavaWeb News Project</span>
     </div>
 </footer>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // 1. 确定当前上下文 (比如这里假设新闻分类ID是 2 代表科技)
+        // 实际项目中，你可以用 ${news.categoryId} 获取真实分类
+        const categoryTag = "tech"; // 这里先写死模拟
 
+        // 2. 定义 API 地址
+        // 如果是你组员的电脑，可能是 'http://192.168.x.x:8080/ad-system/api/recommend'
+        // 这里用我们刚才写的 Mock 地址
+        const apiUrl = "${pageContext.request.contextPath}/api/mock-ad?category=" + categoryTag;
+
+        // 3. 发起异步请求 (AJAX)
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(res => {
+                if (res.code === 200 && res.data) {
+                    const ad = res.data;
+                    const adHtml = `
+                        <a href="` + ad.linkUrl + `" target="_blank" title="` + ad.title + `">
+                            <img src="` + ad.imageUrl + `" class="img-fluid rounded" alt="广告">
+                        </a>
+                        <div class="text-end"><small class="text-muted" style="font-size:10px;">广告</small></div>
+                    `;
+                    // 渲染到页面
+                    document.getElementById("ad-container").innerHTML = adHtml;
+                    document.getElementById("ad-container").classList.remove("ad-placeholder"); // 去掉边框样式
+                }
+            })
+            .catch(error => {
+                console.error('广告加载失败:', error);
+                document.getElementById("ad-container").innerText = "暂无推荐";
+            });
+    });
+</script>
 </body>
 </html>
