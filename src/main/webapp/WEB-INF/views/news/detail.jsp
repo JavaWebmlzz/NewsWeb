@@ -1,129 +1,120 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<%-- 注意: Tomcat 10/11 JSTL uri 为 jakarta.tags.core --%>
 
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <title>${news.title} - 新闻网</title>
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .news-meta { color: #6c757d; font-size: 0.9rem; margin-bottom: 20px; }
-        .news-content { font-size: 1.1rem; line-height: 1.8; }
-        .ad-placeholder { background-color: #f8f9fa; height: 250px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ced4da; }
-    </style>
 </head>
-<body>
+<body class="bg-light">
 
-<!-- 导航栏 (简单复用，后期可提取为 include) -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+<nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container">
-        <a class="navbar-brand" href="${pageContext.request.contextPath}/">JavaWeb News</a>
+        <!-- 使用相对路径返回首页 -->
+        <a class="navbar-brand" href="./">⬅️ 返回首页</a>
     </div>
 </nav>
 
-<div class="container">
-    <!-- 面包屑导航 -->
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="${pageContext.request.contextPath}/">首页</a></li>
-            <li class="breadcrumb-item active" aria-current="page">正文</li>
-        </ol>
-    </nav>
-
+<div class="container bg-white p-5 rounded shadow-sm">
     <div class="row">
-        <!-- 左侧：新闻内容 -->
-        <div class="col-md-8">
+        <!-- 左侧：新闻正文 -->
+        <div class="col-lg-8">
             <h1 class="mb-3">${news.title}</h1>
-
-            <div class="news-meta">
+            <div class="text-muted mb-4 pb-3 border-bottom">
                 <span class="me-3">📅 发布于: ${news.publishTime}</span>
-                <span>👁️ 阅读: ${news.viewCount}</span>
+                <span>👀 阅读: ${news.viewCount}</span>
+                <!-- 调试显示：直接把分类ID印出来，看看是不是空的 -->
+                <span class="badge bg-secondary ms-2">Debug: CatID=${news.categoryId}</span>
             </div>
 
-            <!-- 封面图 (如果有) -->
-            <c:if test="${not empty news.coverImage}">
-                <div class="mb-4">
-                    <img src="${news.coverImage}" class="img-fluid rounded" alt="Cover Image">
-                </div>
-            </c:if>
-
-            <hr>
-
-            <!-- 正文内容 (允许 HTML 标签渲染) -->
-            <div class="news-content mt-4">
+            <div class="news-content fs-5" style="line-height: 1.8;">
                 <c:out value="${news.content}" escapeXml="false" />
-            </div>
-
-            <div class="mt-5 mb-5 text-center">
-                <a href="${pageContext.request.contextPath}/" class="btn btn-outline-secondary">← 返回首页</a>
             </div>
         </div>
 
-        <!-- 右侧：侧边栏 -->
-        <div class="col-md-4">
+        <!-- 右侧：广告位 -->
+        <div class="col-lg-4">
             <div class="card mb-4">
-                <div class="card-header">广告位</div>
+                <div class="card-header">猜你喜欢 (广告)</div>
                 <div class="card-body">
-                    <div id="ad-container" class="ad-placeholder">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">正在加载...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                    <!-- 关键点：data-category-id 必须取到值 -->
+                    <div id="ad-container"
+                         class="bg-light text-center py-4"
+                         data-category-id="${news.categoryId}"
+                         data-visitor-id="${visitorId}">
 
-            <div class="card">
-                <div class="card-header">相关推荐</div>
-                <div class="card-body">
-                    <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none">暂无推荐内容</a></li>
-                    </ul>
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">正在加载智能广告...</p>
+                        <small class="d-block text-muted">
+                            (Category: ${news.categoryId} | User: ${visitorId})
+                        </small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Footer -->
-<footer class="bg-light text-center text-lg-start mt-auto py-3">
-    <div class="container text-center">
-        <span class="text-muted">© 2023 JavaWeb News Project</span>
-    </div>
-</footer>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // 1. 确定当前上下文 (比如这里假设新闻分类ID是 2 代表科技)
-        // 实际项目中，你可以用 ${news.categoryId} 获取真实分类
-        const categoryTag = "tech"; // 这里先写死模拟
+        var adContainer = document.getElementById('ad-container');
+        if (!adContainer) return;
 
-        // 2. 定义 API 地址
-        // 如果是你组员的电脑，可能是 'http://192.168.x.x:8080/ad-system/api/recommend'
-        // 这里用我们刚才写的 Mock 地址
-        const apiUrl = "${pageContext.request.contextPath}/api/mock-ad?category=" + categoryTag;
+        // 1. 获取参数
+        var categoryId = adContainer.dataset.categoryId;
+        var visitorId = adContainer.dataset.visitorId;
 
-        // 3. 发起异步请求 (AJAX)
+        // 🛡️ 保险措施：如果 dataset 没取到，尝试从 Debug 徽章取
+        if (!categoryId) {
+            console.warn("⚠️ dataset 取值失败，尝试解析 Debug 徽章...");
+            var debugBadge = document.querySelector('.badge.bg-secondary');
+            if (debugBadge) {
+                var match = debugBadge.textContent.match(/CatID=(\d+)/);
+                if (match) categoryId = match[1];
+            }
+        }
+
+        console.log("🔍 前端参数 check: ", categoryId, visitorId);
+
+        if (!categoryId) {
+            adContainer.innerHTML = '<div class="alert alert-danger">Error: Category ID Missing</div>';
+            return;
+        }
+
+        // 2. 构造 URL (关键修改：这里改成用 + 号拼接，不要用 ` 和
+        // 这样 JSP 就不会报错了
+        var apiUrl = "api/mock-ad?categoryId=" + categoryId + "&visitorId=" + visitorId + "&_t=" + new Date().getTime();
+
+        // 3. 发送请求
         fetch(apiUrl)
-            .then(response => response.json())
-            .then(res => {
+            .then(function(response) { return response.json(); })
+            .then(function(res) {
+                console.log("✅ API Raw Response:", res);
+
                 if (res.code === 200 && res.data) {
-                    const ad = res.data;
-                    const adHtml = `
-                        <a href="` + ad.linkUrl + `" target="_blank" title="` + ad.title + `">
-                            <img src="` + ad.imageUrl + `" class="img-fluid rounded" alt="广告">
-                        </a>
-                        <div class="text-end"><small class="text-muted" style="font-size:10px;">广告</small></div>
-                    `;
-                    // 渲染到页面
-                    document.getElementById("ad-container").innerHTML = adHtml;
-                    document.getElementById("ad-container").classList.remove("ad-placeholder"); // 去掉边框样式
+                    var img = res.data.imageUrl || "";
+                    var link = res.data.linkUrl || "#";
+                    var title = res.data.title || "Ad Recommendation";
+                    var shortId = visitorId ? visitorId.substring(0, 6) : 'N/A';
+
+                    // HTML 拼接也改成普通的字符串拼接，防止出错
+                    var html = '<a href="' + link + '" target="_blank">' +
+                        '<img src="' + img + '" class="img-fluid rounded shadow-sm" style="width:100%">' +
+                        '</a>' +
+                        '<div class="mt-2 fw-bold text-dark">' + title + '</div>' +
+                        '<div class="text-muted small">Ad ID: ' + shortId + '...</div>';
+
+                    adContainer.innerHTML = html;
+                } else {
+                    adContainer.innerHTML = 'No Ad Found';
                 }
             })
-            .catch(error => {
-                console.error('广告加载失败:', error);
-                document.getElementById("ad-container").innerText = "暂无推荐";
+            .catch(function(error) {
+                console.error("❌ Fetch Error:", error);
+                adContainer.innerHTML = '<div class="text-danger">Load Failed: ' + error.message + '</div>';
             });
     });
 </script>
