@@ -34,7 +34,11 @@
                     <c:forEach items="${newsList}" var="news">
                         <div class="card news-card">
                             <div class="card-body">
-                                <h5 class="card-title text-primary">${news.title}</h5>
+                                <h5 class="card-title">
+                                    <a href="${pageContext.request.contextPath}/news?action=detail&id=${news.id}" class="text-decoration-none text-primary">
+                                            ${news.title}
+                                    </a>
+                                </h5>
                                 <p class="card-text">${news.summary}</p>
                                 <div class="news-meta">
                                     <span class="me-3">📅 ${news.publishTime}</span>
