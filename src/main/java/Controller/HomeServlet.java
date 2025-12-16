@@ -17,18 +17,25 @@ import java.util.List;
 public class HomeServlet extends HttpServlet {
 
     private final NewsService newsService = new NewsServiceImpl();
-
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        // 1. 调用 Service 获取数据 (第1页，取10条)
-        List<News> newsList = newsService.getLatestNews(1, 10);
+        // 1. 获取分类参数 (URL类似于 /?categoryId=2)
+        String catStr = req.getParameter("categoryId");
+        Integer categoryId = null;
+        if (catStr != null && catStr.matches("\\d+")) {
+            categoryId = Integer.parseInt(catStr);
+        }
 
-        // 2. 将数据存入 Request 域，以便 JSP 读取
+        // 2. 调用 Service (传入分类ID)
+        List<News> newsList = newsService.getLatestNews(1, 10, categoryId);
+
+        // 3. 存入数据
         req.setAttribute("newsList", newsList);
+        // 把当前选中的分类ID也传回去，方便前端高亮显示导航栏
+        req.setAttribute("currentCategory", categoryId);
 
-        // 3. 转发到 JSP 页面渲染
         req.getRequestDispatcher("/index.jsp").forward(req, resp);
     }
 }

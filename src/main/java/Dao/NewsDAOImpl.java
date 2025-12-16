@@ -40,13 +40,31 @@ public class NewsDAOImpl implements NewsDAO {
     }
 
     @Override
-    public List<News> selectByPage(int offset, int limit) throws Exception {
-        String sql = "SELECT * FROM news WHERE is_deleted = 0 ORDER BY publish_time DESC LIMIT ?, ?";
+    public List<News> selectByPage(int offset, int limit, Integer categoryId) throws Exception {
+        List<Object> params = new ArrayList<>();
+        // 基础 SQL
+        String sql = "SELECT * FROM news WHERE is_deleted = 0 ";
+
+        // 动态拼接 SQL：如果 categoryId 不为空且大于0，就加条件
+        if (categoryId != null && categoryId > 0) {
+            sql += "AND category_id = ? ";
+            params.add(categoryId);
+        }
+
+        sql += "ORDER BY publish_time DESC LIMIT ?, ?";
+        params.add(offset);
+        params.add(limit);
+
+
         List<News> list = new ArrayList<>();
         try (Connection conn = DBUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, offset);
-            pstmt.setInt(2, limit);
+
+            // 动态设置参数
+            for (int i = 0; i < params.size(); i++) {
+                pstmt.setObject(i + 1, params.get(i));
+            }
+
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     list.add(mapRowToNews(rs));
