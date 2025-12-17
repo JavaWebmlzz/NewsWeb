@@ -20,9 +20,11 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container">
         <a class="navbar-brand" href="./">📰 新闻网</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav">
-                <!-- 这里的 class 逻辑：如果 currentCategory 为空，说明在首页，高亮"全部" -->
+            <ul class="navbar-nav me-auto"> <!-- me-auto 让左边菜单靠左 -->
                 <li class="nav-item">
                     <a class="nav-link ${empty currentCategory ? 'active' : ''}" href="./">全部</a>
                 </li>
@@ -39,6 +41,20 @@
                     <a class="nav-link ${currentCategory == 4 ? 'active' : ''}" href="?categoryId=4">娱乐</a>
                 </li>
             </ul>
+
+            <!-- 👇👇👇 新增：搜索框 👇👇👇 -->
+            <form class="d-flex" action="./" method="get">
+                <!-- 如果当前在某个分类下，搜索时保留分类ID -->
+                <c:if test="${not empty currentCategory}">
+                    <input type="hidden" name="categoryId" value="${currentCategory}">
+                </c:if>
+
+                <input class="form-control me-2" type="search" name="keyword"
+                       placeholder="搜索新闻..." value="${currentKeyword}" aria-label="Search">
+                <button class="btn btn-outline-light" type="submit">搜索</button>
+            </form>
+            <!-- 👆👆👆 新增结束 👆👆👆 -->
+
         </div>
     </div>
 </nav>
@@ -67,6 +83,35 @@
                             </div>
                         </div>
                     </c:forEach>
+
+                    <!-- 分页条 -->
+                    <c:if test="${pagination.totalPage > 1}">
+                        <nav aria-label="Page navigation" class="mt-4">
+                            <ul class="pagination justify-content-center">
+
+                                <!-- 定义一个基础参数串，确保翻页时不会丢掉分类和搜索词 -->
+                                <c:set var="baseParams" value="&categoryId=${currentCategory}&keyword=${currentKeyword}" />
+
+                                <!-- 上一页 -->
+                                <li class="page-item ${pagination.currentPage == 1 ? 'disabled' : ''}">
+                                    <a class="page-link" href="?page=${pagination.currentPage - 1}${baseParams}">上一页</a>
+                                </li>
+
+                                <!-- 页码循环 (1, 2, 3...) -->
+                                <c:forEach begin="1" end="${pagination.totalPage}" var="i">
+                                    <li class="page-item ${pagination.currentPage == i ? 'active' : ''}">
+                                        <a class="page-link" href="?page=${i}${baseParams}">${i}</a>
+                                    </li>
+                                </c:forEach>
+
+                                <!-- 下一页 -->
+                                <li class="page-item ${pagination.currentPage == pagination.totalPage ? 'disabled' : ''}">
+                                    <a class="page-link" href="?page=${pagination.currentPage + 1}${baseParams}">下一页</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </c:if>
+
                 </c:when>
                 <c:otherwise>
                     <div class="alert alert-info">暂无新闻数据...</div>

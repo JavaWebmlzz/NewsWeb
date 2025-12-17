@@ -1,11 +1,10 @@
 package Service;
 
 import Model.News;
-import java.util.List;
+import java.util.Map;
 
 public interface NewsService {
-//    List<News> getLatestNews(int page, int pageSize);
     News getNewsDetail(Integer id);
-    List<News> getLatestNews(int page, int pageSize, Integer categoryId);
+    Map<String, Object> getNewsPage(int page, int pageSize, Integer categoryId, String keyword);
 
 }

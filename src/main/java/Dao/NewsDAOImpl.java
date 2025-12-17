@@ -3,10 +3,13 @@ package Dao;
 
 import Model.News;
 import Util.DBUtil;
-
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.sql.*;
+
 
 public class NewsDAOImpl implements NewsDAO {
 
@@ -40,33 +43,42 @@ public class NewsDAOImpl implements NewsDAO {
     }
 
     @Override
-    public List<News> selectByPage(int offset, int limit, Integer categoryId) throws Exception {
+    public List<News> selectByPage(int offset, int limit, Integer categoryId, String keyword) throws Exception {
+        // 1. 准备参数列表和基础 SQL
         List<Object> params = new ArrayList<>();
-        // 基础 SQL
-        String sql = "SELECT * FROM news WHERE is_deleted = 0 ";
+        StringBuilder sql = new StringBuilder("SELECT * FROM news WHERE is_deleted = 0 ");
 
-        // 动态拼接 SQL：如果 categoryId 不为空且大于0，就加条件
+        // 2. 动态拼接条件：分类筛选
         if (categoryId != null && categoryId > 0) {
-            sql += "AND category_id = ? ";
+            sql.append("AND category_id = ? ");
             params.add(categoryId);
         }
 
-        sql += "ORDER BY publish_time DESC LIMIT ?, ?";
+        // 3. 动态拼接条件：关键词搜索 (模糊查询)
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            sql.append("AND title LIKE ? ");
+            params.add("%" + keyword.trim() + "%");
+        }
+
+        // 4. 拼接排序和分页
+        sql.append("ORDER BY publish_time DESC LIMIT ?, ?");
         params.add(offset);
         params.add(limit);
 
-
         List<News> list = new ArrayList<>();
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            // 动态设置参数
+        // 5. 执行查询
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
+
+            // 循环设置参数 (因为参数数量是不固定的)
             for (int i = 0; i < params.size(); i++) {
                 pstmt.setObject(i + 1, params.get(i));
             }
 
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
+                    // 复用之前的映射方法
                     list.add(mapRowToNews(rs));
                 }
             }
@@ -74,14 +86,30 @@ public class NewsDAOImpl implements NewsDAO {
         return list;
     }
 
+
     @Override
-    public int count() throws Exception {
-        String sql = "SELECT count(*) FROM news WHERE is_deleted = 0";
+    public int count(Integer categoryId, String keyword) throws Exception {
+        List<Object> params = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("SELECT count(*) FROM news WHERE is_deleted = 0 ");
+
+        if (categoryId != null && categoryId > 0) {
+            sql.append("AND category_id = ? ");
+            params.add(categoryId);
+        }
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            sql.append("AND title LIKE ? ");
+            params.add("%" + keyword.trim() + "%");
+        }
+
         try (Connection conn = DBUtil.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            if (rs.next()) {
-                return rs.getInt(1);
+             PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                pstmt.setObject(i + 1, params.get(i));
+            }
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
             }
         }
         return 0;

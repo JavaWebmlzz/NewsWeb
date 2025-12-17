@@ -13,8 +13,8 @@ public interface NewsDAO {
 
     // 3. 分页查询列表 (offset 是起始行, limit 是条数)
 
-     List<News> selectByPage(int offset, int limit, Integer categoryId) throws Exception;
+    List<News> selectByPage(int offset, int limit, Integer categoryId, String keyword) throws Exception;
 
     // 4. 查询总记录数 (用于计算分页)
-    int count() throws Exception;
+    int count(Integer categoryId, String keyword) throws Exception;
 }

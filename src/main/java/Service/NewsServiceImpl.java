@@ -6,39 +6,49 @@ import Dao.NewsDAOImpl;
 import Model.News;
 import java.util.List;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class NewsServiceImpl implements NewsService {
     private final NewsDAO newsDAO = new NewsDAOImpl();
 
     @Override
-    public List<News> getLatestNews(int page, int pageSize, Integer categoryId) {
+    public Map<String, Object> getNewsPage(int page, int pageSize, Integer categoryId, String keyword) {
+        Map<String, Object> result = new HashMap<>();
         try {
+            // 1. 计算数据库偏移量
             int offset = (page - 1) * pageSize;
-            // 调用升级后的 DAO
-            return newsDAO.selectByPage(offset, pageSize, categoryId);
+
+            // 2. 查询数据列表
+            List<News> list = newsDAO.selectByPage(offset, pageSize, categoryId, keyword);
+
+            // 3. 查询总记录数
+            int totalCount = newsDAO.count(categoryId, keyword);
+
+            // 4. 计算总页数 (向上取整)
+            int totalPage = (int) Math.ceil((double) totalCount / pageSize);
+
+            // 5. 打包结果
+            result.put("list", list);           // 新闻数据
+            result.put("totalCount", totalCount); // 总条数
+            result.put("totalPage", totalPage);   // 总页数
+            result.put("currentPage", page);      // 当前页
+
         } catch (Exception e) {
             e.printStackTrace();
-            return Collections.emptyList();
+            result.put("list", Collections.emptyList());
+            result.put("totalPage", 0);
+            result.put("currentPage", 1);
         }
+        return result;
     }
 
     @Override
     public News getNewsDetail(Integer id) {
-        if (id == null) {
-            return null;
-        }
         try {
-            News news = newsDAO.selectById(id);
-
-            // 如果新闻不存在，或者逻辑删除位为 true，则视为不存在
-            if (news == null || (news.getIsDeleted() != null && news.getIsDeleted())) {
-                return null;
-            }
-
-            return news;
+            return newsDAO.selectById(id);
         } catch (Exception e) {
             e.printStackTrace();
-            // 实际生产中应记录日志，这里暂时返回 null 让 Controller 处理
             return null;
         }
     }
