@@ -21,7 +21,8 @@ public class HomeServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-
+//int i = 1/0;
+// （测试500.jsp用）
         // 1. 接收参数并处理默认值
         int page = 1;
         int pageSize = 5; // 每页显示5条，方便测试分页效果

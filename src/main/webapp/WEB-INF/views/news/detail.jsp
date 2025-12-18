@@ -7,6 +7,31 @@
     <meta charset="UTF-8">
     <title>${news.title} - 新闻网</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* ... 原有的样式 ... */
+
+        /* 骨架屏动画 */
+        @keyframes shimmer {
+            0% { background-position: -468px 0; }
+            100% { background-position: 468px 0; }
+        }
+
+        .skeleton-box {
+            background: #f6f7f8;
+            background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+            background-repeat: no-repeat;
+            background-size: 800px 100%;
+            animation: shimmer 1s linear infinite forwards;
+            border-radius: 5px;
+        }
+
+        /* 专门用于广告位的占位符 */
+        .ad-skeleton {
+            width: 100%;
+            height: 200px; /* 模拟图片高度 */
+        }
+    </style>
+
 </head>
 <body class="bg-light">
 
@@ -22,6 +47,14 @@
         <!-- 左侧：新闻正文 -->
         <div class="col-lg-8">
             <h1 class="mb-3">${news.title}</h1>
+            <c:if test="${not empty news.coverImage}">
+                <div class="mb-4">
+                    <img src="${news.coverImage}"
+                         class="img-fluid rounded shadow-sm"
+                         alt="新闻封面"
+                         style="width: 100%; max-height: 500px; object-fit: cover;">
+                </div>
+            </c:if>
             <div class="text-muted mb-4 pb-3 border-bottom">
                 <span class="me-3">📅 发布于: ${news.publishTime}</span>
                 <span>👀 阅读: ${news.viewCount}</span>
@@ -45,13 +78,9 @@
                          data-category-id="${news.categoryId}"
                          data-visitor-id="${visitorId}">
 
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2 text-muted">正在加载智能广告...</p>
-                        <small class="d-block text-muted">
-                            (Category: ${news.categoryId} | User: ${visitorId})
-                        </small>
+                            <div class="skeleton-box ad-skeleton"></div>
+                            <div class="mt-2 skeleton-box" style="height: 20px; width: 60%; margin: 0 auto;"></div>
+
                     </div>
                 </div>
             </div>

@@ -12,6 +12,30 @@
         .news-card { margin-bottom: 20px; transition: transform 0.2s; }
         .news-card:hover { transform: translateY(-5px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .news-meta { font-size: 0.85rem; color: #6c757d; }
+        <style>
+             /* ... 原有的样式 ... */
+
+             /* 骨架屏动画 */
+        @keyframes shimmer {
+            0% { background-position: -468px 0; }
+            100% { background-position: 468px 0; }
+        }
+
+        .skeleton-box {
+            background: #f6f7f8;
+            background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+            background-repeat: no-repeat;
+            background-size: 800px 100%;
+            animation: shimmer 1s linear infinite forwards;
+            border-radius: 5px;
+        }
+
+        /* 专门用于广告位的占位符 */
+        .ad-skeleton {
+            width: 100%;
+            height: 200px; /* 模拟图片高度 */
+        }
+    </style>
     </style>
 </head>
 <body>
@@ -131,8 +155,11 @@
                      class="text-center py-3"
                      data-category-id="${currentCategory != null ? currentCategory : 0}"
                      data-visitor-id="${visitorId}">
-                    <div class="spinner-border text-secondary" role="status">
-                        <span class="visually-hidden">Loading...</span>
+                    <div id="home-ad-container" class="..." ...>
+                        <!-- 初始状态显示骨架屏 -->
+                        <div class="skeleton-box ad-skeleton"></div>
+                        <div class="mt-2 skeleton-box" style="height: 20px; width: 60%; margin: 0 auto;"></div>
+                    </div>
                     </div>
                 </div>
             </div>
