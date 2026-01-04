@@ -12,7 +12,6 @@
         .news-card { margin-bottom: 20px; transition: transform 0.2s; }
         .news-card:hover { transform: translateY(-5px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .news-meta { font-size: 0.85rem; color: #6c757d; }
-        <style>
              /* ... 原有的样式 ... */
 
              /* 骨架屏动画 */
@@ -36,7 +35,7 @@
             height: 200px; /* 模拟图片高度 */
         }
     </style>
-    </style>
+
 </head>
 <body>
 
