@@ -174,9 +174,10 @@
         var visId = adContainer.dataset.visitorId;
 
         // API URL (首页广告)
-        var apiUrl = "api/mock-ad?categoryId=" + catId + "&visitorId=" + visId + "&_t=" + new Date().getTime();
+            var apiUrl = "api/ad-recommend?categoryId=" + catId + "&visitorId=" + visId + "&_t=" + new Date().getTime();
 
-        fetch(apiUrl)
+
+            fetch(apiUrl)
         .then(function(res){ return res.json(); })
         .then(function(res){
         if(res.code === 200 && res.data) {

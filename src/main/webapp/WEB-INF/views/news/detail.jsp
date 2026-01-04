@@ -7,37 +7,11 @@
     <meta charset="UTF-8">
     <title>${news.title} - 新闻网</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        /* ... 原有的样式 ... */
-
-        /* 骨架屏动画 */
-        @keyframes shimmer {
-            0% { background-position: -468px 0; }
-            100% { background-position: 468px 0; }
-        }
-
-        .skeleton-box {
-            background: #f6f7f8;
-            background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
-            background-repeat: no-repeat;
-            background-size: 800px 100%;
-            animation: shimmer 1s linear infinite forwards;
-            border-radius: 5px;
-        }
-
-        /* 专门用于广告位的占位符 */
-        .ad-skeleton {
-            width: 100%;
-            height: 200px; /* 模拟图片高度 */
-        }
-    </style>
-
 </head>
 <body class="bg-light">
 
 <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container">
-        <!-- 使用相对路径返回首页 -->
         <a class="navbar-brand" href="./">⬅️ 返回首页</a>
     </div>
 </nav>
@@ -47,19 +21,18 @@
         <!-- 左侧：新闻正文 -->
         <div class="col-lg-8">
             <h1 class="mb-3">${news.title}</h1>
+
+            <!-- 封面图 -->
             <c:if test="${not empty news.coverImage}">
                 <div class="mb-4">
-                    <img src="${news.coverImage}"
-                         class="img-fluid rounded shadow-sm"
-                         alt="新闻封面"
-                         style="width: 100%; max-height: 500px; object-fit: cover;">
+                    <img src="${news.coverImage}" class="img-fluid rounded shadow-sm" style="width: 100%; max-height: 500px; object-fit: cover;" alt="封面图">
                 </div>
             </c:if>
+
             <div class="text-muted mb-4 pb-3 border-bottom">
                 <span class="me-3">📅 发布于: ${news.publishTime}</span>
                 <span>👀 阅读: ${news.viewCount}</span>
-                <!-- 调试显示：直接把分类ID印出来，看看是不是空的 -->
-                <span class="badge bg-secondary ms-2">Debug: CatID=${news.categoryId}</span>
+                <span class="badge bg-secondary ms-2">CatID=${news.categoryId}</span>
             </div>
 
             <div class="news-content fs-5" style="line-height: 1.8;">
@@ -69,83 +42,122 @@
 
         <!-- 右侧：广告位 -->
         <div class="col-lg-4">
-            <div class="card mb-4">
-                <div class="card-header">猜你喜欢 (广告)</div>
+            <div class="card mb-4 sticky-top" style="top: 20px;">
+                <div class="card-header bg-primary text-white">🔥 个性化推荐 (广告)</div>
                 <div class="card-body">
-                    <!-- 关键点：data-category-id 必须取到值 -->
+                    <!-- 广告容器 -->
                     <div id="ad-container"
-                         class="bg-light text-center py-4"
+                         class="text-center py-4"
                          data-category-id="${news.categoryId}"
                          data-visitor-id="${visitorId}">
 
-                            <div class="skeleton-box ad-skeleton"></div>
-                            <div class="mt-2 skeleton-box" style="height: 20px; width: 60%; margin: 0 auto;"></div>
-
+                        <!-- 初始加载动画 -->
+                        <div class="spinner-border text-primary mb-2" role="status"></div>
+                        <p class="text-muted small">正在连接广告联盟...</p>
+                        <p class="text-muted small" style="font-size: 10px;">ID: ${visitorId}</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- 核心 JS 逻辑 -->
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         var adContainer = document.getElementById('ad-container');
         if (!adContainer) return;
 
-        // 1. 获取参数
-        var categoryId = adContainer.dataset.categoryId;
+        // 1. 获取基础参数
         var visitorId = adContainer.dataset.visitorId;
+        var currentCategory = adContainer.dataset.categoryId;
 
-        // 🛡️ 保险措施：如果 dataset 没取到，尝试从 Debug 徽章取
-        if (!categoryId) {
-            console.warn("⚠️ dataset 取值失败，尝试解析 Debug 徽章...");
-            var debugBadge = document.querySelector('.badge.bg-secondary');
-            if (debugBadge) {
-                var match = debugBadge.textContent.match(/CatID=(\d+)/);
-                if (match) categoryId = match[1];
-            }
-        }
+        // 🛡️ 容错：如果 visitorId 为空，生成一个临时的
+        if (!visitorId) visitorId = "temp_" + Math.random().toString(36).substr(2, 9);
 
-        console.log("🔍 前端参数 check: ", categoryId, visitorId);
+        console.log("🚀 [详情页] 开始加载广告流程...");
 
-        if (!categoryId) {
-            adContainer.innerHTML = '<div class="alert alert-danger">Error: Category ID Missing</div>';
-            return;
-        }
+        // ==========================================
+        // 第一步：询问【外部广告平台】
+        // ==========================================
+        var externalProfileApi = "api/mock-external-profile?visitorId=" + visitorId;
 
-        // 2. 构造 URL (关键修改：这里改成用 + 号拼接，不要用 ` 和
-        // 这样 JSP 就不会报错了
-        var apiUrl = "api/mock-ad?categoryId=" + categoryId + "&visitorId=" + visitorId + "&_t=" + new Date().getTime();
-
-        // 3. 发送请求
-        fetch(apiUrl)
-            .then(function(response) { return response.json(); })
+        // 使用 fetch 链式调用
+        fetch(externalProfileApi)
             .then(function(res) {
-                console.log("✅ API Raw Response:", res);
+                if (res.ok) return res.json();
+                return { code: 500 }; // 失败时返回空对象
+            })
+            .then(function(res) {
+                // 成功获取到外部画像
+                var extCat = "";
+                if (res.code === 200 && res.data) {
+                    extCat = res.data.shopping_cat;
+                    console.log("✅ [1/2] 外部画像获取成功: " + extCat);
+                }
+                return extCat; // 【关键】把获取到的画像传给下一步
+            })
+            .catch(function(err) {
+                console.warn("⚠️ [1/2] 外部画像获取异常:", err);
+                return ""; // 出错也返回空字符串，保证链条不断
+            })
+            .then(function(externalInterest) {
+                // ==========================================
+                // 第二步：请求【本站推荐算法】
+                // (这里接收上一步传下来的 externalInterest)
+                // ==========================================
+
+                var recommendApi = "api/ad-recommend?categoryId=" + currentCategory
+                    + "&visitorId=" + visitorId
+                    + "&externalCat=" + externalInterest
+                    + "&_t=" + new Date().getTime();
+
+                console.log("📡 [2/2] 请求推荐算法: " + recommendApi);
+
+                // 发起第二次请求
+                return fetch(recommendApi);
+            })
+            .then(function(res) { return res.json(); }) // 【修复】这里现在能收到第二次请求的结果了
+            .then(function(res) {
+                console.log("✅ [2/2] 广告数据返回:", res);
 
                 if (res.code === 200 && res.data) {
-                    var img = res.data.imageUrl || "";
-                    var link = res.data.linkUrl || "#";
-                    var title = res.data.title || "Ad Recommendation";
-                    var shortId = visitorId ? visitorId.substring(0, 6) : 'N/A';
+                    // 渲染广告
+                    var img = res.data.imageUrl;
+                    var link = res.data.linkUrl;
+                    var title = res.data.title;
 
-                    // HTML 拼接也改成普通的字符串拼接，防止出错
-                    var html = '<a href="' + link + '" target="_blank">' +
-                        '<img src="' + img + '" class="img-fluid rounded shadow-sm" style="width:100%">' +
+                    adContainer.innerHTML =
+                        '<a href="' + link + '" target="_blank">' +
+                        '<img src="' + img + '" class="img-fluid rounded mb-2 shadow-sm" style="width:100%">' +
                         '</a>' +
-                        '<div class="mt-2 fw-bold text-dark">' + title + '</div>' +
-                        '<div class="text-muted small">Ad ID: ' + shortId + '...</div>';
-
-                    adContainer.innerHTML = html;
+                        '<div class="fw-bold text-dark">' + title + '</div>' +
+                        '<div class="text-muted small">基于您的浏览画像推荐</div>';
                 } else {
-                    adContainer.innerHTML = 'No Ad Found';
+                    adContainer.innerHTML = '暂无合适广告';
                 }
             })
-            .catch(function(error) {
-                console.error("❌ Fetch Error:", error);
-                adContainer.innerHTML = '<div class="text-danger">Load Failed: ' + error.message + '</div>';
+            .catch(function(err) {
+                console.error("❌ 广告流程错误:", err);
+                adContainer.innerHTML = '<div class="text-danger small">加载失败<br>' + err.message + '</div>';
             });
+
+        // ==========================================
+        // 行为采集
+        // ==========================================
+        var startTime = Date.now();
+        window.addEventListener('beforeunload', function() {
+            var duration = Math.round((Date.now() - startTime) / 1000);
+            if (navigator.sendBeacon) {
+                var data = new FormData();
+                data.append('visitorId', visitorId);
+                data.append('categoryId', currentCategory);
+                data.append('duration', duration);
+                navigator.sendBeacon('api/behavior', data);
+            }
+        });
     });
 </script>
+
 </body>
 </html>

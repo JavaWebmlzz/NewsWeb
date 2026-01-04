@@ -7,5 +7,8 @@
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/ae69e96e-0413-445f-b10c-b8bbf04521ce/console_3.sql" value="ae69e96e-0413-445f-b10c-b8bbf04521ce" />
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/ae69e96e-0413-445f-b10c-b8bbf04521ce/console_4.sql" value="ae69e96e-0413-445f-b10c-b8bbf04521ce" />
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/ae69e96e-0413-445f-b10c-b8bbf04521ce/console_5.sql" value="ae69e96e-0413-445f-b10c-b8bbf04521ce" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/ae69e96e-0413-445f-b10c-b8bbf04521ce/console_6.sql" value="ae69e96e-0413-445f-b10c-b8bbf04521ce" />
+    <file url="file://$PROJECT_DIR$/src/main/java/Controller/AdRecommendServlet.java" value="ae69e96e-0413-445f-b10c-b8bbf04521ce" />
+    <file url="file://$PROJECT_DIR$/src/main/java/Controller/BehaviorServlet.java" value="ae69e96e-0413-445f-b10c-b8bbf04521ce" />
   </component>
 </project>
