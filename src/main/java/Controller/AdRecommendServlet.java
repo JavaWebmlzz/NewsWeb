@@ -9,7 +9,13 @@ import java.util.List;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 
-
+/**
+ * 核心广告推荐算法接口
+ * 策略：本地加权算法
+ * 1. 接收前端传来的 externalCat (这是从队友服务器查到的画像)
+ * 2. 结合当前上下文 (categoryId)
+ * 3. 在本地数据库 (ad_pool) 中寻找匹配度最高的广告
+ */
 @WebServlet("/api/ad-recommend")
 public class AdRecommendServlet extends HttpServlet {
 
@@ -31,7 +37,9 @@ public class AdRecommendServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        // 1. 设置响应头 (JSON + 跨域)
+        // 1. 强制设置编码 (防止乱码)
+        req.setCharacterEncoding("UTF-8");
+        resp.setCharacterEncoding("UTF-8");
         resp.setContentType("application/json;charset=UTF-8");
         resp.setHeader("Access-Control-Allow-Origin", "*");
 
@@ -42,7 +50,8 @@ public class AdRecommendServlet extends HttpServlet {
         String currentCatStr = req.getParameter("categoryId");
         int currentCatId = (currentCatStr != null && !currentCatStr.isEmpty()) ? Integer.parseInt(currentCatStr) : 0;
 
-        // 参数B: 【新增】从广告平台(购物网站)同步过来的外部画像 (External Profile)
+        // 参数B: 【关键】前端从队友服务器获取到的画像 (External Profile)
+        // 比如：队友返回 "2"，代表用户喜欢科技
         String externalCatStr = req.getParameter("externalCat");
         int externalCatId = 0;
         try {
@@ -53,46 +62,40 @@ public class AdRecommendServlet extends HttpServlet {
             // 忽略转换错误
         }
 
-        System.out.println("🤖 [AdAlgo] User=" + visitorId + ", ContextCat=" + currentCatId + ", ExternalCat=" + externalCatId);
+        System.out.println("🤖 [AdAlgo] 计算推荐 | User=" + visitorId + " | 上下文=" + currentCatId + " | 队友画像=" + externalCatId);
 
-        // 3. 获取所有候选广告 (从数据库 ad_pool)
+        // 3. 获取本地数据库所有广告
         List<AdItem> ads = getAllAdsFromPool();
 
         // 4. 核心推荐算法 (加权计算)
         AdItem bestAd = null;
-        double maxScore = -999; // 初始最低分
+        double maxScore = -999;
 
         for (AdItem ad : ads) {
             // --- 基础分 (0-5分随机) ---
-            // 作用：让广告保持一定的随机性，不会永远只显示同一个
             double score = Math.random() * 5;
 
-            // --- 维度A: 上下文加权 (Context) ---
-            // 作用：正在看什么，就推什么
+            // --- 维度A: 上下文加权 ---
             if (ad.categoryId == currentCatId) {
                 score += 30.0;
-                System.out.println("   -> [" + ad.title + "] 命中上下文 (+30)");
             }
 
-            // --- 维度B: 外部跨域画像加权 (External/Shopping) ---
-            // 作用：模拟从购物网站过来的数据，权重最高，体现"精准追踪"
+            // --- 维度B: 队友画像加权 (权重最高) ---
+            // 如果本地广告的分类 == 队友告诉我们的兴趣分类
             if (ad.categoryId == externalCatId) {
                 score += 50.0;
-                System.out.println("   -> [" + ad.title + "] 命中购物画像 (+50) !!!");
+                System.out.println("   -> [" + ad.title + "] 命中队友画像 (+50) !!!");
             }
 
-            // --- 维度C: 历史行为加权 (Internal History) ---
-            // 作用：基于在新闻网站内部的停留时间积累
+            // --- 维度C: 本地历史行为加权 ---
             int userInterestScore = getUserScoreForCategory(visitorId, ad.categoryId);
             if (userInterestScore > 0) {
-                score += userInterestScore * 1.5; // 系数 1.5
-                System.out.println("   -> [" + ad.title + "] 命中历史兴趣 (+" + (userInterestScore*1.5) + ")");
+                score += userInterestScore * 1.5;
             }
 
-            // 记录最终得分
             ad.finalScore = score;
 
-            // 擂台赛：谁分高谁留下
+            // 擂台赛
             if (score > maxScore) {
                 maxScore = score;
                 bestAd = ad;
@@ -101,28 +104,28 @@ public class AdRecommendServlet extends HttpServlet {
 
         // 5. 返回 JSON 结果
         if (bestAd != null) {
-            // 在标题里显示分数，方便演示时查看效果
-            String debugTitle = bestAd.title + " (Score: " + String.format("%.1f", bestAd.finalScore) + ")";
+            String debugTitle = bestAd.title;
+            // 如果是根据队友画像推荐的，在标题后加个标记 (方便演示)
+            if (bestAd.categoryId == externalCatId && externalCatId > 0) {
+                debugTitle += " (跨域推荐)";
+            }
 
-            // 手动拼接 JSON (避免引入额外库)
             String json = String.format(
                     "{\"code\": 200, \"message\": \"success\", \"data\": {\"imageUrl\": \"%s\", \"linkUrl\": \"%s\", \"title\": \"%s\"}}",
                     bestAd.imageUrl, bestAd.linkUrl, debugTitle
             );
             resp.getWriter().write(json);
         } else {
-            // 兜底：如果没有广告
-            resp.getWriter().write("{\"code\": 404, \"message\": \"No Ad Found\"}");
+            // 兜底：如果没有广告，返回默认
+            String defaultJson = "{\"code\": 200, \"data\": {\"imageUrl\": \"https://placehold.co/600x400/EEE/31343C?text=News+Ad\", \"linkUrl\": \"#\", \"title\": \"赞助广告\"}}";
+            resp.getWriter().write(defaultJson);
         }
     }
 
     // ==========================================
-    // 下面是辅助方法 (DB操作)
+    // 数据库辅助方法
     // ==========================================
 
-    /**
-     * 从数据库 ad_pool 表加载所有广告
-     */
     private List<AdItem> getAllAdsFromPool() {
         List<AdItem> list = new ArrayList<>();
         String sql = "SELECT * FROM ad_pool";
@@ -140,20 +143,15 @@ public class AdRecommendServlet extends HttpServlet {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        // 如果数据库没数据，加几个硬编码的防止空指针（仅供测试）
+        // 防止数据库为空导致报错
         if (list.isEmpty()) {
-            list.add(new AdItem("Default Ad", "...", "...", 0));
+            list.add(new AdItem("Default Ad", "https://placehold.co/600x400", "#", 0));
         }
         return list;
     }
 
-    /**
-     * 获取用户对某分类的兴趣分 (从 user_profile 表解析 JSON)
-     */
     private int getUserScoreForCategory(String vid, int catId) {
         if (vid == null) return 0;
-
-        // MySQL 5.7+ 支持 JSON_EXTRACT
         String sql = "SELECT JSON_EXTRACT(interest_json, CONCAT('$.\"', ?, '\"')) FROM user_profile WHERE visitor_id = ?";
         try (Connection conn = DBUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -161,16 +159,13 @@ public class AdRecommendServlet extends HttpServlet {
             pstmt.setString(2, vid);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
-                    // JSON_EXTRACT 可能返回 NULL，需要判空
                     String val = rs.getString(1);
-                    if (val != null) {
-                        return Integer.parseInt(val);
-                    }
+                    if (val != null) return Integer.parseInt(val);
                 }
             }
         } catch (Exception e) {
-            // 忽略 JSON 解析错误或无记录情况
+            throw new RuntimeException(e);
         }
-        return 0; // 默认0分
+        return 0;
     }
 }
