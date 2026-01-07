@@ -132,4 +132,14 @@ public class NewsDAOImpl implements NewsDAO {
         }
         return news;
     }
+
+    @Override
+    public void incrementViewCount(Integer id) throws Exception {
+        String sql = "UPDATE news SET view_count = view_count + 1 WHERE id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, id);
+            pstmt.executeUpdate();
+        }
+    }
 }

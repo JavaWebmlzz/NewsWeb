@@ -1,5 +1,6 @@
 package Controller;
 
+import Util.DBUtil;
 import Util.HttpUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -11,13 +12,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Random;
-import Util.DBUtil; // 记得导入 DBUtil
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @WebServlet("/api/ad-recommend")
 public class AdRecommendServlet extends HttpServlet {
 
-    // 队友的视频基础路径
-    private static final String VIDEO_BASE_URL = "http://10.100.164.13:8080/uploads/ads/";
+    // 队友的新接口地址
+    private static final String TEAMMATE_API = "http://10.100.164.13:8080/api/ads/randomByPrefix";
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -30,7 +32,9 @@ public class AdRecommendServlet extends HttpServlet {
 
         String visitorId = req.getParameter("visitorId");
 
-        // 1. 算法核心：查询数据库获取用户最喜欢的分类
+        // ==========================================
+        // 1. 算法层：决定推荐哪个分类 (1, 2, 3, 4)
+        // ==========================================
         int targetCatId = 0;
         String strategy = "random_cold_start";
 
@@ -42,49 +46,68 @@ public class AdRecommendServlet extends HttpServlet {
             targetCatId = new Random().nextInt(4) + 1; // 随机 1-4
         }
 
-        // ==========================================
-        // 2. 【核心修改】智能寻找可用视频 (Probe Logic)
-        // ==========================================
-        String finalVideoUrl = "";
+        System.out.println("🤖 [推荐算法] 策略=" + strategy + " | 命中分类ID=" + targetCatId);
 
-        // 既然队友命名不规律 (如 3_3.mp4)，我们循环检测 index 1 到 5
-        for (int i = 1; i <= 5; i++) {
-            // 构造尝试的 URL，例如 .../ads/3_1.mp4, .../ads/3_3.mp4
-            String tryUrl = VIDEO_BASE_URL + targetCatId + "_" + i + ".mp4";
+        // ==========================================
+        // 2. 网络层：调用队友 API 获取广告数据
+        // ==========================================
+        // 构造 URL: .../randomByPrefix?prefix=2&limit=1
+        String remoteApiUrl = TEAMMATE_API + "?prefix=" + targetCatId + "&limit=1";
+        String jsonResponse = HttpUtil.get(remoteApiUrl);
+        System.out.println("🔍 [调试] 队友API返回原始数据: " + jsonResponse);
 
-            // 探针检测：这个文件存在吗？
-            if (HttpUtil.isUrlValid(tryUrl)) {
-                finalVideoUrl = tryUrl;
-                System.out.println("✅ [资源检测] 找到可用视频: " + tryUrl);
-                break; // 找到了就停止
-            } else {
-                System.out.println("❌ [资源检测] 文件不存在: " + tryUrl);
-            }
+        // 默认兜底数据 (万一队友接口挂了)
+        String finalUrl = "http://10.100.164.13:8080/uploads/ads/2_1.mp4"; // 随便写个存在的兜底
+        String finalTitle = "精彩视频推荐";
+
+        if (jsonResponse != null && jsonResponse.contains("videoFullUrl")) {
+            // ==========================================
+            // 3. 解析层：提取 JSON 数据
+            // ==========================================
+            // 队友返回的是个数组: [{"id":9, "videoFullUrl":"...", ...}]
+            // 我们用正则提取，避免引入 Jackson/Gson 库导致依赖问题
+
+            // 提取 videoFullUrl
+            String url = extractJsonValue(jsonResponse, "videoFullUrl");
+            if (url != null) finalUrl = url;
+
+            // 提取 title
+            String title = extractJsonValue(jsonResponse, "title");
+            if (title != null) finalTitle = title;
+
+            System.out.println("✅ [接口调用] 成功获取队友广告: " + finalTitle + " | " + finalUrl);
+        } else {
+            System.err.println("❌ [接口调用] 队友API无响应或格式错误: " + remoteApiUrl);
         }
 
-        // 3. 【兜底逻辑】如果循环完都没找到 (比如分类4下面没有视频)
-        // 强制使用一个我们知道一定存在的视频 (比如 2_1.mp4 科技)
-        if (finalVideoUrl.isEmpty()) {
-            System.out.println("⚠️ [资源告警] 分类 " + targetCatId + " 下没找到视频，使用默认兜底。");
-            finalVideoUrl = VIDEO_BASE_URL + "2_1.mp4"; // 确保这个文件队友服务器上有！
-            strategy = "fallback_default";
-        }
-
-        String title = getCategoryName(targetCatId) + (favoriteCat > 0 ? " (猜你喜欢)" : " (热门推荐)");
-
-        System.out.println("🤖 [推荐算法] User=" + visitorId + " | 策略=" + strategy + " | 最终播放=" + finalVideoUrl);
-
-        // 4. 返回 JSON
-        String json = String.format(
+        // ==========================================
+        // 4. 返回层：构建前端需要的 JSON
+        // ==========================================
+        // 你的前端需要: { data: { url: "...", title: "...", type: "video" } }
+        String myJson = String.format(
                 "{\"code\": 200, \"message\": \"success\", \"data\": {\"url\": \"%s\", \"linkUrl\": \"#\", \"title\": \"%s\", \"type\": \"video\"}}",
-                finalVideoUrl, title
+                finalUrl, finalTitle
         );
-        resp.getWriter().write(json);
+        resp.getWriter().write(myJson);
     }
 
     /**
-     * 读取数据库，找到分数最高的分类
+     * 简单的正则 JSON 提取器 (不依赖第三方库)
+     * 针对: "key": "value" 或 "key":"value"
      */
+    private String extractJsonValue(String json, String key) {
+        try {
+            // 匹配 "key"\s*:\s*"([^"]+)"
+            Pattern p = Pattern.compile("\"" + key + "\"\\s*:\\s*\"([^\"]+)\"");
+            Matcher m = p.matcher(json);
+            if (m.find()) {
+                return m.group(1);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return null;
+    }
+
+    // --- 数据库方法 (保持不变) ---
     private int getUserFavoriteCategory(String vid) {
         if (vid == null) return 0;
         String sql = "SELECT category_id FROM user_preference WHERE visitor_id = ? ORDER BY score DESC LIMIT 1";
@@ -98,15 +121,5 @@ public class AdRecommendServlet extends HttpServlet {
             }
         } catch (Exception e) { e.printStackTrace(); }
         return 0;
-    }
-
-    private String getCategoryName(int id) {
-        switch (id) {
-            case 1: return "在线教育";
-            case 2: return "前沿科技";
-            case 3: return "体育运动";
-            case 4: return "娱乐影视";
-            default: return "精彩广告";
-        }
     }
 }
