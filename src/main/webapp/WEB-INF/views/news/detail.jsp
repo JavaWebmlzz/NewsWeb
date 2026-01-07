@@ -103,13 +103,16 @@
     formData.append('categoryId', currentCategory);
     formData.append('type', 'view'); // 类型：浏览
 
-    fetch('api/behavior', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: formData
-});
-}
-}, 3000); // 每3秒触发一次
+        fetch('api/behavior', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        }).then(res => {
+            if(res.ok) console.log("✅ 上报成功"); // <--- 必须看到这就话
+            else console.error("❌ 上报失败", res.status);
+        });
+    }
+    }, 3000); // 每3秒触发一次
 });
 </script>
 

@@ -10,59 +10,40 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 
-
-@WebServlet("/api/behavior")
+@WebServlet("/api/behavior") // <--- 确保路径是这个
 public class BehaviorServlet extends HttpServlet {
 
-    // 接收 POST 请求：用户浏览结束或心跳包
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        // 允许跨域 (解决 Shopping 网站调用问题)
-        resp.setHeader("Access-Control-Allow-Origin", "*");
-
         String visitorId = req.getParameter("visitorId");
-        String categoryIdStr = req.getParameter("categoryId");
-        String durationStr = req.getParameter("duration"); // 停留秒数
+        String catStr = req.getParameter("categoryId");
+        String type = req.getParameter("type");
 
-        if (visitorId == null || categoryIdStr == null) return;
+        System.out.println("📥 [行为接收] User=" + visitorId + ", Cat=" + catStr + ", Type=" + type);
 
-        int categoryId = Integer.parseInt(categoryIdStr);
-        int duration = Integer.parseInt(durationStr);
+        if (visitorId != null && catStr != null) {
+            try {
+                int cid = Integer.parseInt(catStr);
+                int score = "click".equals(type) ? 10 : 1;
 
-        // 算法逻辑：停留时间越长，加分越多
-        // < 3秒: 不加分 (误触)
-        // 3-10秒: +1分
-        // 10-30秒: +3分
-        // > 30秒: +5分
-        int scoreToAdd = 0;
-        if (duration > 30) scoreToAdd = 5;
-        else if (duration > 10) scoreToAdd = 3;
-        else if (duration > 3) scoreToAdd = 1;
-
-        if (scoreToAdd > 0) {
-            updateScore(visitorId, categoryId, scoreToAdd);
+                // 写入数据库
+                String sql = "INSERT INTO user_preference (visitor_id, category_id, score) VALUES (?, ?, ?) " +
+                        "ON DUPLICATE KEY UPDATE score = score + ?";
+                try (Connection conn = DBUtil.getConnection();
+                     PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, visitorId);
+                    ps.setInt(2, cid);
+                    ps.setInt(3, score);
+                    ps.setInt(4, score);
+                    ps.executeUpdate();
+                    System.out.println("💾 [DB保存] 成功！");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
-
-        resp.getWriter().write("ok");
-    }
-
-    private void updateScore(String vid, int catId, int score) {
-        // "存在即更新，不存在即插入" (Upsert)
-        String sql = "INSERT INTO user_preference (visitor_id, category_id, score) VALUES (?, ?, ?) " +
-                "ON DUPLICATE KEY UPDATE score = score + ?";
-
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, vid);
-            pstmt.setInt(2, catId);
-            pstmt.setInt(3, score); // 初始值
-            pstmt.setInt(4, score); // 累加值
-            pstmt.executeUpdate();
-            System.out.println("📈 [行为记录] 用户 " + vid + " 分类 " + catId + " 积分 +" + score);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        resp.setStatus(200);
     }
 }

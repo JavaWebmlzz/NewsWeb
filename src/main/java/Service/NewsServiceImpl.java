@@ -46,6 +46,11 @@ public class NewsServiceImpl implements NewsService {
     @Override
     public News getNewsDetail(Integer id) {
         try {
+            // 1. 先把阅读量 +1 (这里是关键修改)
+            // 这样后面 selectById 查出来的就是最新的阅读量
+            newsDAO.incrementViewCount(id);
+
+            // 2. 再查数据返回
             return newsDAO.selectById(id);
         } catch (Exception e) {
             e.printStackTrace();

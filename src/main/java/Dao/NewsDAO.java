@@ -17,4 +17,6 @@ public interface NewsDAO {
 
     // 4. 查询总记录数 (用于计算分页)
     int count(Integer categoryId, String keyword) throws Exception;
+    // 添加这个新方法
+    void incrementViewCount(Integer id) throws Exception;
 }
