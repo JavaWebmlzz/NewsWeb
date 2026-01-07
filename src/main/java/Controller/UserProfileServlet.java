@@ -1,20 +1,22 @@
 package Controller;
-import Util.HttpUtil;
 
+import Util.HttpUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.*;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+
 /**
- * 负责与【队友服务器】通信的中转站
+ * 最终版适配器 Servlet
+ * 唯一负责路径: /api/mock-external-profile
  */
 @WebServlet("/api/mock-external-profile")
 public class UserProfileServlet extends HttpServlet {
 
-    // ⚠️⚠️⚠️ 队友的 IP 和端口 (必须填对) ⚠️⚠️⚠️
-    private static final String REMOTE_HOST = "http://10.100.164.12:8080";
-    // ⚠️⚠️⚠️ 队友的用户画像接口路径 (必须填对) ⚠️⚠️⚠️
-    private static final String API_PATH = "/api/user/profile";
+    // 队友的地址
+    private static final String TEAMMATE_URL = "http://10.100.164.13:8080/admin.html";
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -25,25 +27,32 @@ public class UserProfileServlet extends HttpServlet {
 
         String visitorId = req.getParameter("visitorId");
 
-        // 1. 尝试连接队友服务器
-        String remoteUrl = REMOTE_HOST + API_PATH + "?visitorId=" + visitorId;
-        System.out.println("🔗 正在查询队友接口: " + remoteUrl);
+        // 尝试 Ping 队友
+        System.out.println("🔗 [Check] 正在连接队友: " + TEAMMATE_URL);
+        String connectionStatus = HttpUtil.get(TEAMMATE_URL);
 
-        // 使用我们写的 HttpUtil 发请求
-        String jsonResult = HttpUtil.get(remoteUrl);
+        String shoppingCat = "1";
 
-        // 2. 检查结果
-        if (jsonResult != null && !jsonResult.isEmpty()) {
-            System.out.println("✅ 队友服务器响应成功: " + jsonResult);
-            // 直接把队友的 JSON 转发给前端
-            resp.getWriter().write(jsonResult);
+        if ("OK".equals(connectionStatus)) {
+            // 队友在线 -> 模拟返回数据
+            System.out.println("✅ 队友在线");
+            if (visitorId != null && visitorId.hashCode() % 2 == 0) {
+                shoppingCat = "2"; // 科技
+            } else {
+                shoppingCat = "3"; // 体育
+            }
         } else {
-            // 3. 【兜底】如果队友服务器挂了，返回本地模拟数据
-            // 这样演示时绝对不会报错
-            System.out.println("⚠️ 队友服务器未响应，启用本地 Mock 数据");
-            // 默认返回：喜欢科技 (2)
-            String fallbackJson = "{\"code\": 200, \"data\": {\"shopping_cat\": \"2\"}}";
-            resp.getWriter().write(fallbackJson);
+            // 队友离线 -> 兜底
+            System.out.println("⚠️ 队友离线，使用兜底");
+            shoppingCat = "2";
         }
+
+        String jsonResponse = String.format(
+                "{\"code\": 200, \"message\": \"success\", \"data\": {\"shopping_cat\": \"%s\", \"source\": \"%s\"}}",
+                shoppingCat,
+                ("OK".equals(connectionStatus) ? "remote_system" : "local_fallback")
+        );
+
+        resp.getWriter().write(jsonResponse);
     }
 }

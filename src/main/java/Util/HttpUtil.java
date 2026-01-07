@@ -7,36 +7,42 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 public class HttpUtil {
+        /**
+         * 发送 GET 请求
+         * @return 返回响应内容，如果连接失败返回 null
+         */
+        public static String get(String urlStr) {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(urlStr);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(2000); // 2秒超时，别让队友拖死我们
+                conn.setReadTimeout(2000);
 
-    // 发送 GET 请求并返回 JSON 字符串
-    public static String get(String urlStr) {
-        HttpURLConnection conn = null;
-        try {
-            URL url = new URL(urlStr);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(3000); // 3秒超时，防止队友服务器卡死
-            conn.setReadTimeout(3000);
+                // 假装自己是浏览器，防止对方服务器拦截
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
 
-            int responseCode = conn.getResponseCode();
-            if (responseCode == 200) {
-                try (BufferedReader in = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    StringBuilder response = new StringBuilder();
-                    String inputLine;
-                    while ((inputLine = in.readLine()) != null) {
-                        response.append(inputLine);
+                int responseCode = conn.getResponseCode();
+                System.out.println("📡 HttpUtil请求: " + urlStr + " | 状态码: " + responseCode);
+
+                if (responseCode == 200) {
+                    // 连接成功！读取内容（虽然我们可能不用内容，但要读完流）
+                    try (BufferedReader in = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                        StringBuilder response = new StringBuilder();
+                        String inputLine;
+                        while ((inputLine = in.readLine()) != null) {
+                            response.append(inputLine);
+                        }
+                        return "OK"; // 只要通了，就返回 "OK"，不返回那一堆 HTML 了
                     }
-                    return response.toString();
                 }
-            } else {
-                System.err.println("❌ 请求失败: " + urlStr + " Code: " + responseCode);
+            } catch (Exception e) {
+                System.err.println("❌ 连接队友服务器失败: " + e.getMessage());
+            } finally {
+                if (conn != null) conn.disconnect();
             }
-        } catch (Exception e) {
-            System.err.println("❌ 网络连接异常: " + e.getMessage());
-        } finally {
-            if (conn != null) conn.disconnect();
+            return null;
         }
-        return null; // 请求失败返回空
-    }
 }
