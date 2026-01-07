@@ -42,33 +42,25 @@ public class BehaviorServlet extends HttpServlet {
         else if (duration > 3) scoreToAdd = 1;
 
         if (scoreToAdd > 0) {
-            updateUserProfile(visitorId, categoryId, scoreToAdd);
+            updateScore(visitorId, categoryId, scoreToAdd);
         }
 
         resp.getWriter().write("ok");
     }
 
-    // 更新数据库中的 JSON 画像
-    private void updateUserProfile(String vid, int catId, int score) {
-        // 这里使用 MySQL 8.0 的 JSON 函数进行原子更新
-        // 如果记录不存在则插入，存在则更新对应 Key 的值
-        String sql = "INSERT INTO user_profile (visitor_id, interest_json) " +
-                "VALUES (?, JSON_OBJECT(?, ?)) " +
-                "ON DUPLICATE KEY UPDATE " +
-                "interest_json = JSON_SET(interest_json, " +
-                "CONCAT('$.\"', ?, '\"'), " + // JSON Key 路径
-                "COALESCE(JSON_EXTRACT(interest_json, CONCAT('$.\"', ?, '\"')), 0) + ?)";
+    private void updateScore(String vid, int catId, int score) {
+        // "存在即更新，不存在即插入" (Upsert)
+        String sql = "INSERT INTO user_preference (visitor_id, category_id, score) VALUES (?, ?, ?) " +
+                "ON DUPLICATE KEY UPDATE score = score + ?";
 
         try (Connection conn = DBUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, vid);
-            pstmt.setString(2, String.valueOf(catId));
-            pstmt.setInt(3, score);
-            pstmt.setString(4, String.valueOf(catId)); // Key for JSON_SET
-            pstmt.setString(5, String.valueOf(catId)); // Key for JSON_EXTRACT
-            pstmt.setInt(6, score);
+            pstmt.setInt(2, catId);
+            pstmt.setInt(3, score); // 初始值
+            pstmt.setInt(4, score); // 累加值
             pstmt.executeUpdate();
-            System.out.println("User " + vid + " category " + catId + " score increased by " + score);
+            System.out.println("📈 [行为记录] 用户 " + vid + " 分类 " + catId + " 积分 +" + score);
         } catch (Exception e) {
             e.printStackTrace();
         }

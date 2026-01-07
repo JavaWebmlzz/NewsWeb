@@ -9,13 +9,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 /**
- * 最终版适配器 Servlet
- * 唯一负责路径: /api/mock-external-profile
+ * 询问队友：这个用户属于哪个分类？(1教育, 2科技, 3体育, 4娱乐)
  */
 @WebServlet("/api/mock-external-profile")
 public class UserProfileServlet extends HttpServlet {
 
-    // 队友的地址
+    // 队友服务器地址 (用于 Ping 存活检测)
     private static final String TEAMMATE_URL = "http://10.100.164.13:8080/admin.html";
 
     @Override
@@ -27,32 +26,30 @@ public class UserProfileServlet extends HttpServlet {
 
         String visitorId = req.getParameter("visitorId");
 
-        // 尝试 Ping 队友
-        System.out.println("🔗 [Check] 正在连接队友: " + TEAMMATE_URL);
-        String connectionStatus = HttpUtil.get(TEAMMATE_URL);
+        // 1. 检测队友服务器是否活着
+        String status = HttpUtil.get(TEAMMATE_URL);
 
-        String shoppingCat = "1";
+        // 2. 模拟队友返回的分类 ID
+        // 规则：根据 visitorId 的哈希值，均匀分配到 1-4
+        // 1=教育, 2=科技, 3=体育, 4=娱乐
+        String targetCat = "2"; // 默认科技
 
-        if ("OK".equals(connectionStatus)) {
-            // 队友在线 -> 模拟返回数据
-            System.out.println("✅ 队友在线");
-            if (visitorId != null && visitorId.hashCode() % 2 == 0) {
-                shoppingCat = "2"; // 科技
-            } else {
-                shoppingCat = "3"; // 体育
-            }
-        } else {
-            // 队友离线 -> 兜底
-            System.out.println("⚠️ 队友离线，使用兜底");
-            shoppingCat = "2";
+        if (visitorId != null) {
+            // 简单的取模算法，让不同用户看到不同分类
+            int hash = Math.abs(visitorId.hashCode());
+            int catId = (hash % 4) + 1; // 结果为 1, 2, 3, 4
+            targetCat = String.valueOf(catId);
         }
 
-        String jsonResponse = String.format(
-                "{\"code\": 200, \"message\": \"success\", \"data\": {\"shopping_cat\": \"%s\", \"source\": \"%s\"}}",
-                shoppingCat,
-                ("OK".equals(connectionStatus) ? "remote_system" : "local_fallback")
+        // 3. 返回 JSON
+        // 这里的 shopping_cat 就是队友返回给我们的分类ID
+        String json = String.format(
+                "{\"code\": 200, \"data\": {\"shopping_cat\": \"%s\", \"source\": \"%s\"}}",
+                targetCat,
+                (status != null ? "connected" : "mock_fallback")
         );
 
-        resp.getWriter().write(jsonResponse);
+        System.out.println("🔗 [画像查询] User=" + visitorId + " -> 归类为=" + targetCat);
+        resp.getWriter().write(json);
     }
 }

@@ -1,171 +1,112 @@
 package Controller;
 
-import Util.DBUtil;
-import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.*;
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import Util.HttpUtil;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.Random;
+import Util.DBUtil; // 记得导入 DBUtil
 
-/**
- * 核心广告推荐算法接口
- * 策略：本地加权算法
- * 1. 接收前端传来的 externalCat (这是从队友服务器查到的画像)
- * 2. 结合当前上下文 (categoryId)
- * 3. 在本地数据库 (ad_pool) 中寻找匹配度最高的广告
- */
 @WebServlet("/api/ad-recommend")
 public class AdRecommendServlet extends HttpServlet {
 
-    // 内部类：简单的广告对象结构
-    static class AdItem {
-        String title, imageUrl, linkUrl;
-        int categoryId;
-        double finalScore = 0; // 计算后的得分
-
-        public AdItem(String t, String i, String l, int c) {
-            this.title = t;
-            this.imageUrl = i;
-            this.linkUrl = l;
-            this.categoryId = c;
-        }
-    }
+    // 队友的视频基础路径
+    private static final String VIDEO_BASE_URL = "http://10.100.164.13:8080/uploads/ads/";
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        // 1. 强制设置编码 (防止乱码)
         req.setCharacterEncoding("UTF-8");
         resp.setCharacterEncoding("UTF-8");
         resp.setContentType("application/json;charset=UTF-8");
         resp.setHeader("Access-Control-Allow-Origin", "*");
 
-        // 2. 获取参数
         String visitorId = req.getParameter("visitorId");
 
-        // 参数A: 当前正在看的新闻分类 (Context)
-        String currentCatStr = req.getParameter("categoryId");
-        int currentCatId = (currentCatStr != null && !currentCatStr.isEmpty()) ? Integer.parseInt(currentCatStr) : 0;
+        // 1. 算法核心：查询数据库获取用户最喜欢的分类
+        int targetCatId = 0;
+        String strategy = "random_cold_start";
 
-        // 参数B: 【关键】前端从队友服务器获取到的画像 (External Profile)
-        // 比如：队友返回 "2"，代表用户喜欢科技
-        String externalCatStr = req.getParameter("externalCat");
-        int externalCatId = 0;
-        try {
-            if (externalCatStr != null && !externalCatStr.isEmpty() && !"none".equals(externalCatStr)) {
-                externalCatId = Integer.parseInt(externalCatStr);
-            }
-        } catch (NumberFormatException e) {
-            // 忽略转换错误
-        }
-
-        System.out.println("🤖 [AdAlgo] 计算推荐 | User=" + visitorId + " | 上下文=" + currentCatId + " | 队友画像=" + externalCatId);
-
-        // 3. 获取本地数据库所有广告
-        List<AdItem> ads = getAllAdsFromPool();
-
-        // 4. 核心推荐算法 (加权计算)
-        AdItem bestAd = null;
-        double maxScore = -999;
-
-        for (AdItem ad : ads) {
-            // --- 基础分 (0-5分随机) ---
-            double score = Math.random() * 5;
-
-            // --- 维度A: 上下文加权 ---
-            if (ad.categoryId == currentCatId) {
-                score += 30.0;
-            }
-
-            // --- 维度B: 队友画像加权 (权重最高) ---
-            // 如果本地广告的分类 == 队友告诉我们的兴趣分类
-            if (ad.categoryId == externalCatId) {
-                score += 50.0;
-                System.out.println("   -> [" + ad.title + "] 命中队友画像 (+50) !!!");
-            }
-
-            // --- 维度C: 本地历史行为加权 ---
-            int userInterestScore = getUserScoreForCategory(visitorId, ad.categoryId);
-            if (userInterestScore > 0) {
-                score += userInterestScore * 1.5;
-            }
-
-            ad.finalScore = score;
-
-            // 擂台赛
-            if (score > maxScore) {
-                maxScore = score;
-                bestAd = ad;
-            }
-        }
-
-        // 5. 返回 JSON 结果
-        if (bestAd != null) {
-            String debugTitle = bestAd.title;
-            // 如果是根据队友画像推荐的，在标题后加个标记 (方便演示)
-            if (bestAd.categoryId == externalCatId && externalCatId > 0) {
-                debugTitle += " (跨域推荐)";
-            }
-
-            String json = String.format(
-                    "{\"code\": 200, \"message\": \"success\", \"data\": {\"imageUrl\": \"%s\", \"linkUrl\": \"%s\", \"title\": \"%s\"}}",
-                    bestAd.imageUrl, bestAd.linkUrl, debugTitle
-            );
-            resp.getWriter().write(json);
+        int favoriteCat = getUserFavoriteCategory(visitorId);
+        if (favoriteCat > 0) {
+            targetCatId = favoriteCat;
+            strategy = "personalized_history";
         } else {
-            // 兜底：如果没有广告，返回默认
-            String defaultJson = "{\"code\": 200, \"data\": {\"imageUrl\": \"https://placehold.co/600x400/EEE/31343C?text=News+Ad\", \"linkUrl\": \"#\", \"title\": \"赞助广告\"}}";
-            resp.getWriter().write(defaultJson);
+            targetCatId = new Random().nextInt(4) + 1; // 随机 1-4
         }
-    }
 
-    // ==========================================
-    // 数据库辅助方法
-    // ==========================================
+        // ==========================================
+        // 2. 【核心修改】智能寻找可用视频 (Probe Logic)
+        // ==========================================
+        String finalVideoUrl = "";
 
-    private List<AdItem> getAllAdsFromPool() {
-        List<AdItem> list = new ArrayList<>();
-        String sql = "SELECT * FROM ad_pool";
-        try (Connection conn = DBUtil.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) {
-                list.add(new AdItem(
-                        rs.getString("title"),
-                        rs.getString("image_url"),
-                        rs.getString("link_url"),
-                        rs.getInt("category_id")
-                ));
+        // 既然队友命名不规律 (如 3_3.mp4)，我们循环检测 index 1 到 5
+        for (int i = 1; i <= 5; i++) {
+            // 构造尝试的 URL，例如 .../ads/3_1.mp4, .../ads/3_3.mp4
+            String tryUrl = VIDEO_BASE_URL + targetCatId + "_" + i + ".mp4";
+
+            // 探针检测：这个文件存在吗？
+            if (HttpUtil.isUrlValid(tryUrl)) {
+                finalVideoUrl = tryUrl;
+                System.out.println("✅ [资源检测] 找到可用视频: " + tryUrl);
+                break; // 找到了就停止
+            } else {
+                System.out.println("❌ [资源检测] 文件不存在: " + tryUrl);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
-        // 防止数据库为空导致报错
-        if (list.isEmpty()) {
-            list.add(new AdItem("Default Ad", "https://placehold.co/600x400", "#", 0));
+
+        // 3. 【兜底逻辑】如果循环完都没找到 (比如分类4下面没有视频)
+        // 强制使用一个我们知道一定存在的视频 (比如 2_1.mp4 科技)
+        if (finalVideoUrl.isEmpty()) {
+            System.out.println("⚠️ [资源告警] 分类 " + targetCatId + " 下没找到视频，使用默认兜底。");
+            finalVideoUrl = VIDEO_BASE_URL + "2_1.mp4"; // 确保这个文件队友服务器上有！
+            strategy = "fallback_default";
         }
-        return list;
+
+        String title = getCategoryName(targetCatId) + (favoriteCat > 0 ? " (猜你喜欢)" : " (热门推荐)");
+
+        System.out.println("🤖 [推荐算法] User=" + visitorId + " | 策略=" + strategy + " | 最终播放=" + finalVideoUrl);
+
+        // 4. 返回 JSON
+        String json = String.format(
+                "{\"code\": 200, \"message\": \"success\", \"data\": {\"url\": \"%s\", \"linkUrl\": \"#\", \"title\": \"%s\", \"type\": \"video\"}}",
+                finalVideoUrl, title
+        );
+        resp.getWriter().write(json);
     }
 
-    private int getUserScoreForCategory(String vid, int catId) {
+    /**
+     * 读取数据库，找到分数最高的分类
+     */
+    private int getUserFavoriteCategory(String vid) {
         if (vid == null) return 0;
-        String sql = "SELECT JSON_EXTRACT(interest_json, CONCAT('$.\"', ?, '\"')) FROM user_profile WHERE visitor_id = ?";
+        String sql = "SELECT category_id FROM user_preference WHERE visitor_id = ? ORDER BY score DESC LIMIT 1";
         try (Connection conn = DBUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, String.valueOf(catId));
-            pstmt.setString(2, vid);
+            pstmt.setString(1, vid);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
-                    String val = rs.getString(1);
-                    if (val != null) return Integer.parseInt(val);
+                    return rs.getInt("category_id");
                 }
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { e.printStackTrace(); }
         return 0;
+    }
+
+    private String getCategoryName(int id) {
+        switch (id) {
+            case 1: return "在线教育";
+            case 2: return "前沿科技";
+            case 3: return "体育运动";
+            case 4: return "娱乐影视";
+            default: return "精彩广告";
+        }
     }
 }

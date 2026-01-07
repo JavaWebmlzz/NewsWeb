@@ -45,4 +45,24 @@ public class HttpUtil {
             }
             return null;
         }
+
+    /**
+     * 检测远程 URL 是否有效 (返回 200 表示存在)
+     * 使用 HEAD 请求，速度快，不下载文件内容
+     */
+    public static boolean isUrlValid(String urlStr) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("HEAD"); // 关键：只请求头信息
+            conn.setConnectTimeout(1000);  // 1秒超时，快速跳过
+            conn.setReadTimeout(1000);
+            return conn.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
 }

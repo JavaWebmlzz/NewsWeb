@@ -65,98 +65,52 @@
 <!-- 核心 JS 逻辑 -->
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        var adContainer = document.getElementById('ad-container');
-        if (!adContainer) return;
+    var adContainer = document.getElementById('ad-container');
+    if (!adContainer) return;
 
-        // 1. 获取基础参数
-        var visitorId = adContainer.dataset.visitorId;
-        var currentCategory = adContainer.dataset.categoryId;
+    var visitorId = adContainer.dataset.visitorId;
+    var currentCategory = adContainer.dataset.categoryId; // 当前新闻的分类
 
-        // 🛡️ 容错：如果 visitorId 为空，生成一个临时的
-        if (!visitorId) visitorId = "temp_" + Math.random().toString(36).substr(2, 9);
+    // 1. 请求广告 (直接问推荐接口，不需要中间商了)
+    var apiUrl = "api/ad-recommend?visitorId=" + visitorId + "&_t=" + Date.now();
 
-        console.log("🚀 [详情页] 开始加载广告流程...");
+    fetch(apiUrl)
+    .then(res => res.json())
+    .then(res => {
+    if (res.code === 200 && res.data) {
+    // 渲染视频
+    adContainer.innerHTML =
+    '<div class="ratio ratio-16x9 mb-2">' +
+    '<video src="' + res.data.url + '" autoplay muted loop class="rounded shadow-sm" style="width:100%"></video>' +
+    '</div>' +
+    '<div class="fw-bold text-dark">' + res.data.title + '</div>';
+}
+});
 
-        // ==========================================
-        // 第一步：询问【外部广告平台】
-        // ==========================================
-        var externalProfileApi = "api/mock-external-profile?visitorId=" + visitorId;
+    // ==========================================
+    // 2. 核心：行为上报 (埋点)
+    // ==========================================
 
-        // 使用 fetch 链式调用
-        fetch(externalProfileApi)
-            .then(function(res) {
-                if (res.ok) return res.json();
-                return { code: 500 }; // 失败时返回空对象
-            })
-            .then(function(res) {
-                // 成功获取到外部画像
-                var extCat = "";
-                if (res.code === 200 && res.data) {
-                    extCat = res.data.shopping_cat;
-                    console.log("✅ [1/2] 外部画像获取成功: " + extCat);
-                }
-                return extCat; // 【关键】把获取到的画像传给下一步
-            })
-            .catch(function(err) {
-                console.warn("⚠️ [1/2] 外部画像获取异常:", err);
-                return ""; // 出错也返回空字符串，保证链条不断
-            })
-            .then(function(externalInterest) {
-                // ==========================================
-                // 第二步：请求【本站推荐算法】
-                // (这里接收上一步传下来的 externalInterest)
-                // ==========================================
+    // 记录：如果用户在当前页面停留超过 5 秒，就算一次有效阅读
+    // (为了演示效果，我们设置短一点，比如 3 秒就上报一次)
+    setInterval(function() {
+    // 只有当页面可见时才上报
+    if (!document.hidden) {
+    console.log("⏱️ 用户正在阅读分类 " + currentCategory + "，发送心跳包...");
 
-                var recommendApi = "api/ad-recommend?categoryId=" + currentCategory
-                    + "&visitorId=" + visitorId
-                    + "&externalCat=" + externalInterest
-                    + "&_t=" + new Date().getTime();
+    var formData = new URLSearchParams();
+    formData.append('visitorId', visitorId);
+    formData.append('categoryId', currentCategory);
+    formData.append('type', 'view'); // 类型：浏览
 
-                console.log("📡 [2/2] 请求推荐算法: " + recommendApi);
-
-                // 发起第二次请求
-                return fetch(recommendApi);
-            })
-            .then(function(res) { return res.json(); }) // 【修复】这里现在能收到第二次请求的结果了
-            .then(function(res) {
-                console.log("✅ [2/2] 广告数据返回:", res);
-
-                if (res.code === 200 && res.data) {
-                    // 渲染广告
-                    var img = res.data.imageUrl;
-                    var link = res.data.linkUrl;
-                    var title = res.data.title;
-
-                    adContainer.innerHTML =
-                        '<a href="' + link + '" target="_blank">' +
-                        '<img src="' + img + '" class="img-fluid rounded mb-2 shadow-sm" style="width:100%">' +
-                        '</a>' +
-                        '<div class="fw-bold text-dark">' + title + '</div>' +
-                        '<div class="text-muted small">基于您的浏览画像推荐</div>';
-                } else {
-                    adContainer.innerHTML = '暂无合适广告';
-                }
-            })
-            .catch(function(err) {
-                console.error("❌ 广告流程错误:", err);
-                adContainer.innerHTML = '<div class="text-danger small">加载失败<br>' + err.message + '</div>';
-            });
-
-        // ==========================================
-        // 行为采集
-        // ==========================================
-        var startTime = Date.now();
-        window.addEventListener('beforeunload', function() {
-            var duration = Math.round((Date.now() - startTime) / 1000);
-            if (navigator.sendBeacon) {
-                var data = new FormData();
-                data.append('visitorId', visitorId);
-                data.append('categoryId', currentCategory);
-                data.append('duration', duration);
-                navigator.sendBeacon('api/behavior', data);
-            }
-        });
-    });
+    fetch('api/behavior', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: formData
+});
+}
+}, 3000); // 每3秒触发一次
+});
 </script>
 
 </body>

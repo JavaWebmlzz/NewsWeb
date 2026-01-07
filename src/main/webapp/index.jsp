@@ -52,7 +52,7 @@
                     <a class="nav-link ${empty currentCategory ? 'active' : ''}" href="./">全部</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link ${currentCategory == 1 ? 'active' : ''}" href="?categoryId=1">国际</a>
+                    <a class="nav-link ${currentCategory == 1 ? 'active' : ''}" href="?categoryId=1">教育</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link ${currentCategory == 2 ? 'active' : ''}" href="?categoryId=2">科技</a>
@@ -164,34 +164,86 @@
             </div>
         </div>
     </div>
-</div>
+
+<!-- 首页广告逻辑 (放在 </body> 前) -->
 <script>
-        document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function() {
         var adContainer = document.getElementById('home-ad-container');
         if (!adContainer) return;
 
-        var catId = adContainer.dataset.categoryId;
-        var visId = adContainer.dataset.visitorId;
+        // 1. 获取参数 (首页的 VisitorId 在 HTML 属性里，Category 可能在 URL 参数里)
+        var visitorId = adContainer.dataset.visitorId;
+        var currentCategory = adContainer.dataset.categoryId || 0;
 
-        // API URL (首页广告)
-            var apiUrl = "api/ad-recommend?categoryId=" + catId + "&visitorId=" + visId + "&_t=" + new Date().getTime();
+        // 🛡️ 容错：如果没有 ID，生成临时的
+        if (!visitorId) visitorId = "guest_" + Math.random().toString(36).substr(2, 9);
 
+        console.log("🚀 [首页] 开始加载侧边栏广告...");
 
-            fetch(apiUrl)
-        .then(function(res){ return res.json(); })
-        .then(function(res){
-        if(res.code === 200 && res.data) {
-        var html = '<a href="' + res.data.linkUrl + '" target="_blank">' +
-        '<img src="' + res.data.imageUrl + '" class="img-fluid rounded" style="width:100%">' +
-        '</a>';
-        adContainer.innerHTML = html;
-    } else {
-        adContainer.innerHTML = '暂无推荐';
-    }
-    })
-        .catch(function(e){ console.error(e); adContainer.innerHTML = 'Ad Error'; });
+        // ==========================================
+        // 第一步：询问【外部广告平台】(跨域画像)
+        // ==========================================
+        var externalProfileApi = "api/mock-external-profile?visitorId=" + visitorId;
+        var externalInterest = "";
+
+        fetch(externalProfileApi)
+            .then(function(res) {
+                if (res.ok) return res.json();
+                return {};
+            })
+            .then(function(res) {
+                if (res.code === 200 && res.data) {
+                    externalInterest = res.data.shopping_cat;
+                    console.log("✅ [首页] 获取到外部画像: " + externalInterest);
+                }
+                return externalInterest;
+            })
+            .catch(function(e) { return ""; })
+            .then(function(extCat) {
+                // ==========================================
+                // 第二步：请求【推荐算法】
+                // ==========================================
+                var apiUrl = "api/ad-recommend?categoryId=" + currentCategory
+                    + "&visitorId=" + visitorId
+                    + "&externalCat=" + extCat
+                    + "&_t=" + new Date().getTime();
+
+                return fetch(apiUrl);
+            })
+            .then(function(res){ return res.json(); })
+            .then(function(res){
+                if(res.code === 200 && res.data) {
+                    var url = res.data.url || res.data.imageUrl;
+                    var link = res.data.linkUrl;
+                    var title = res.data.title;
+                    var type = res.data.type || "image"; // 关键：判断类型
+
+                    var mediaHtml = "";
+
+                    // 👇👇👇 关键修改：区分视频和图片 👇👇👇
+                    if (type === "video") {
+                        // 首页侧边栏建议：静音、自动播放、循环
+                        mediaHtml = '<div class="ratio ratio-16x9 mb-2">' +
+                            '<video src="' + url + '" autoplay muted loop class="rounded shadow-sm" style="width:100%"></video>' +
+                            '</div>';
+                    } else {
+                        mediaHtml = '<a href="' + link + '" target="_blank">' +
+                            '<img src="' + url + '" class="img-fluid rounded mb-2" style="width:100%">' +
+                            '</a>';
+                    }
+
+                    adContainer.innerHTML = mediaHtml +
+                        '<div class="fw-bold text-dark">' + title + '</div>' +
+                        '<div class="text-muted small" style="font-size:12px">今日推荐 · 视频广告</div>';
+                } else {
+                    adContainer.innerHTML = '暂无推荐';
+                }
+            })
+            .catch(function(e){
+                console.error(e);
+                adContainer.innerHTML = '<div class="text-danger small">Ad Error</div>';
+            });
     });
-
 </script>
 </body>
 </html>
