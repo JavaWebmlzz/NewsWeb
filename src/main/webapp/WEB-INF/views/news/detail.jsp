@@ -55,6 +55,7 @@
                         <div class="spinner-border text-primary mb-2" role="status"></div>
                         <p class="text-muted small">正在连接广告联盟...</p>
                         <p class="text-muted small" style="font-size: 10px;">ID: ${visitorId}</p>
+
                     </div>
                 </div>
             </div>
@@ -65,56 +66,66 @@
 <!-- 核心 JS 逻辑 -->
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-    var adContainer = document.getElementById('ad-container');
-    if (!adContainer) return;
+        var adContainer = document.getElementById('ad-container');
+        if (!adContainer) return;
 
-    var visitorId = adContainer.dataset.visitorId;
-    var currentCategory = adContainer.dataset.categoryId; // 当前新闻的分类
+        var visitorId = adContainer.dataset.visitorId;
+        var currentCategory = adContainer.dataset.categoryId;
 
-    // 1. 请求广告 (直接问推荐接口，不需要中间商了)
-    var apiUrl = "api/ad-recommend?visitorId=" + visitorId + "&_t=" + Date.now();
+        // 容错 ID
+        if (!visitorId) visitorId = "guest_" + Math.random().toString(36).substr(2, 9);
 
-    fetch(apiUrl)
-    .then(res => res.json())
-    .then(res => {
-    if (res.code === 200 && res.data) {
-    // 渲染视频
-    adContainer.innerHTML =
-    '<div class="ratio ratio-16x9 mb-2">' +
-    '<video src="' + res.data.url + '" autoplay muted loop class="rounded shadow-sm" style="width:100%"></video>' +
-    '</div>' +
-    '<div class="fw-bold text-dark">' + res.data.title + '</div>';
-}
-});
+        // ==========================================
+        // 1. 【新增】页面加载/刷新立即上报 (权重+10)
+        // ==========================================
+        console.log("🚀 页面加载，发送 '打开新闻' 权重...");
+        reportBehavior('open_news');
 
-    // ==========================================
-    // 2. 核心：行为上报 (埋点)
-    // ==========================================
+        // ==========================================
+        // 2. 请求广告 (逻辑不变)
+        // ==========================================
+        var apiUrl = "api/ad-recommend?visitorId=" + visitorId + "&_t=" + Date.now();
+        fetch(apiUrl)
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200 && res.data) {
+                    adContainer.innerHTML =
+                        '<div class="ratio ratio-16x9 mb-2">' +
+                        '<video id="ad-video" src="' + res.data.url + '" autoplay muted loop class="rounded shadow-sm" style="width:100%; cursor:pointer;"></video>' +
+                        '</div>' +
+                        '<div class="fw-bold text-dark">' + res.data.title + '</div>';
 
-    // 记录：如果用户在当前页面停留超过 5 秒，就算一次有效阅读
-    // (为了演示效果，我们设置短一点，比如 3 秒就上报一次)
-    setInterval(function() {
-    // 只有当页面可见时才上报
-    if (!document.hidden) {
-    console.log("⏱️ 用户正在阅读分类 " + currentCategory + "，发送心跳包...");
+                    // 点击广告上报 (权重+50)
+                    document.getElementById('ad-video').onclick = function() {
+                        alert("跳转中... (兴趣分+50)");
+                        reportBehavior('click_ad');
+                    };
+                }
+            });
 
-    var formData = new URLSearchParams();
-    formData.append('visitorId', visitorId);
-    formData.append('categoryId', currentCategory);
-    formData.append('type', 'view'); // 类型：浏览
+        // ==========================================
+        // 3. 停留心跳包 (每3秒 +1)
+        // ==========================================
+        setInterval(function() {
+            if (!document.hidden) {
+                reportBehavior('stay');
+            }
+        }, 3000);
 
-        fetch('api/behavior', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData
-        }).then(res => {
-            if(res.ok) console.log("✅ 上报成功"); // <--- 必须看到这就话
-            else console.error("❌ 上报失败", res.status);
-        });
-    }
-    }, 3000); // 每3秒触发一次
-});
+        // --- 公共上报方法 ---
+        function reportBehavior(actionType) {
+            var formData = new URLSearchParams();
+            formData.append('visitorId', visitorId);
+            formData.append('categoryId', currentCategory);
+            formData.append('type', actionType);
+
+            fetch('api/behavior', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: formData
+            });
+        }
+    });
 </script>
-
 </body>
 </html>

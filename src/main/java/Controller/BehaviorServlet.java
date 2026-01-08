@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 
-@WebServlet("/api/behavior") // <--- 确保路径是这个
+@WebServlet("/api/behavior")
 public class BehaviorServlet extends HttpServlet {
 
     @Override
@@ -18,32 +18,59 @@ public class BehaviorServlet extends HttpServlet {
             throws ServletException, IOException {
 
         String visitorId = req.getParameter("visitorId");
-        String catStr = req.getParameter("categoryId");
+        String categoryIdStr = req.getParameter("categoryId");
         String type = req.getParameter("type");
 
-        System.out.println("📥 [行为接收] User=" + visitorId + ", Cat=" + catStr + ", Type=" + type);
+        if (visitorId == null || categoryIdStr == null) return;
 
-        if (visitorId != null && catStr != null) {
-            try {
-                int cid = Integer.parseInt(catStr);
-                int score = "click".equals(type) ? 10 : 1;
+        try {
+            int categoryId = Integer.parseInt(categoryIdStr);
+            long scoreToAdd = 0;
 
-                // 写入数据库
-                String sql = "INSERT INTO user_preference (visitor_id, category_id, score) VALUES (?, ?, ?) " +
-                        "ON DUPLICATE KEY UPDATE score = score + ?";
-                try (Connection conn = DBUtil.getConnection();
-                     PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, visitorId);
-                    ps.setInt(2, cid);
-                    ps.setInt(3, score);
-                    ps.setInt(4, score);
-                    ps.executeUpdate();
-                    System.out.println("💾 [DB保存] 成功！");
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+            // ⭐ 演示专用：三级权重体系 ⭐
+            switch (type) {
+                case "click_ad":
+                    // 1. 点击广告：超级加倍
+                    scoreToAdd = 50L;
+                    System.out.println("🖱️ [高权] 点击广告！User=" + visitorId + " Cat=" + categoryId + " (+50)");
+                    break;
+
+                case "open_news":
+                    // 2. 打开/刷新新闻：中等权重
+                    // 只要进来了，就说明想看，必须加分
+                    scoreToAdd = 10L;
+                    System.out.println("📖 [中权] 打开新闻！User=" + visitorId + " Cat=" + categoryId + " (+10)");
+                    break;
+
+                case "stay":
+                    // 3. 停留观看：低权重累积
+                    scoreToAdd = 2L;
+                    // System.out.println("CLOCK [低权] 正在阅读... (+1)"); // 嫌吵可以注释掉
+                    break;
             }
+
+            if (scoreToAdd > 0) {
+                updateScore(visitorId, categoryId, scoreToAdd);
+            }
+            resp.setStatus(200);
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        resp.setStatus(200);
+    }
+
+    private void updateScore(String vid, int catId, long score) {
+        String sql = "INSERT INTO user_preference (visitor_id, category_id, score) VALUES (?, ?, ?) " +
+                "ON DUPLICATE KEY UPDATE score = score + ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, vid);
+            ps.setInt(2, catId);
+            ps.setLong(3, score);
+            ps.setLong(4, score);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
